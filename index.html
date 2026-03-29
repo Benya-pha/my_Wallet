@@ -53,10 +53,10 @@
         budgetTitle: 'หมวดหมู่งบประมาณ', itemsCount: 'รายการ', spent: 'ใช้ไปแล้ว', remaining: 'คงเหลือ',
         pendingTitle: 'รายการค้างจ่าย', historyTitle: 'ประวัติรายการทั้งหมด', noHistory: 'ยังไม่มีรายการบันทึก',
         tabBudget: 'งบประมาณ', tabForm: 'บันทึก', tabHistory: 'ประวัติ',
-        settings: 'การตั้งค่า', language: 'ภาษา', theme: 'ธีมแอปพลิเคชัน', dataManagement: 'จัดการข้อมูล',
+        settings: 'การตั้งค่า', language: 'ภาษา', theme: 'Theme', dataManagement: 'จัดการข้อมูล',
         statusPaid: 'ชำระแล้ว', statusPending: 'รอชำระ',
-        themeAuto: '✨ อัตโนมัติ (Auto)', dayMode: '☀️ โหมดสว่างปกติ (Day)', nightMode: '🌙 โหมดมืดปกติ (Night)',
-        liquidDay: '💧 กระจกใสสว่าง (Liquid Day)', liquidNight: '🌌 กระจกใสมืด (Liquid Night)',
+        themeAuto: 'Auto (System setting)',
+        liquidDay: '(Day)', liquidNight: '(Night)',
         deleteBudgetConfirm: 'คุณต้องการลบหมวดหมู่นี้ใช่หรือไม่?\n(ประวัติรายการใช้จ่ายเดิมจะไม่ถูกลบ)', deletedBudget: '(งบถูกลบแล้ว)'
       },
       en: {
@@ -74,10 +74,10 @@
         budgetTitle: 'Budget Categories', itemsCount: 'items', spent: 'Spent', remaining: 'Left',
         pendingTitle: 'Pending Payments', historyTitle: 'Transaction History', noHistory: 'No records found',
         tabBudget: 'Budgets', tabForm: 'Add', tabHistory: 'History',
-        settings: 'Settings', language: 'Language', theme: 'Application Theme', dataManagement: 'Data Management',
+        settings: 'Settings', language: 'Language', theme: 'Theme', dataManagement: 'Data Management',
         statusPaid: 'Paid', statusPending: 'Pending',
-        themeAuto: '✨ Auto (System setting)', dayMode: '☀️ Standard Light (Day)', nightMode: '🌙 Standard Dark (Night)',
-        liquidDay: '💧 Liquid Glass (Day)', liquidNight: '🌌 Liquid Glass (Night)',
+        themeAuto: 'Auto (System setting)',
+        liquidDay: '(Day)', liquidNight: '(Night)',
         deleteBudgetConfirm: 'Delete this category?\n(Past transactions will remain safe)', deletedBudget: '(Deleted)'
       }
     };
@@ -111,24 +111,7 @@
         tabActive: 'bg-gradient-to-tr from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-900/50',
         borderSoft: 'border-slate-800', isDark: true, isLiquid: true
       };
-      if(activeTheme === 'day') return {
-        app: 'bg-slate-50', textMain: 'text-slate-800', muted: 'text-slate-500',
-        card: 'bg-white border-slate-200 shadow-sm',
-        header: 'bg-white border-b border-slate-200 shadow-sm',
-        nav: 'bg-white border-t border-slate-200',
-        input: 'bg-white border-slate-300 focus:ring-blue-100 text-slate-800',
-        tabActive: 'bg-blue-600 text-white shadow-md',
-        borderSoft: 'border-slate-200', isDark: false, isLiquid: false
-      };
-      if(activeTheme === 'night') return {
-        app: 'bg-slate-900', textMain: 'text-slate-100', muted: 'text-slate-400',
-        card: 'bg-slate-800 border-slate-700 shadow-sm',
-        header: 'bg-slate-950 border-b border-slate-800 shadow-sm',
-        nav: 'bg-slate-950 border-t border-slate-800',
-        input: 'bg-slate-900 border-slate-700 focus:ring-indigo-500/50 text-slate-100',
-        tabActive: 'bg-indigo-600 text-white shadow-md',
-        borderSoft: 'border-slate-700', isDark: true, isLiquid: false
-      };
+      
       // Default: liquid_day
       return {
         app: 'bg-[#FDFBF7]', textMain: 'text-slate-700', muted: 'text-slate-400',
@@ -680,9 +663,7 @@
                       {[
                         { id: 'auto', label: t('themeAuto') },
                         { id: 'liquid_day', label: t('liquidDay') },
-                        { id: 'liquid_night', label: t('liquidNight') },
-                        { id: 'day', label: t('dayMode') },
-                        { id: 'night', label: t('nightMode') }
+                        { id: 'liquid_night', label: t('liquidNight') }
                       ].map(th => (
                         <button key={th.id} onClick={() => setThemeMode(th.id)} className={`text-left px-4 py-3 text-sm font-medium rounded-xl border transition-all ${themeMode === th.id ? 'border-indigo-500 text-indigo-500 bg-indigo-500/10' : `${thm.borderSoft} ${thm.textMain} hover:border-indigo-300`}`}>
                           {th.label}
