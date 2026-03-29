@@ -33,7 +33,7 @@
       Wallet, ArrowUpRight, ArrowDownRight, Briefcase, CheckCircle2, 
       Circle, Image as ImageIcon, Download, Upload, Plus, CreditCard,
       FileText, Calendar, Clock, ChevronRight, Calculator, X, AlertCircle,
-      LayoutGrid, History, Settings, Trash2
+      LayoutGrid, History, Settings, Trash2, Save
     } from 'lucide-react';
 
     // --- i18n Dictionary ---
@@ -57,7 +57,8 @@
         statusPaid: 'ชำระแล้ว', statusPending: 'รอชำระ',
         themeAuto: 'Auto (System setting)',
         liquidDay: '(Day)', liquidNight: '(Night)',
-        deleteBudgetConfirm: 'คุณต้องการลบหมวดหมู่นี้ใช่หรือไม่?\n(ประวัติรายการใช้จ่ายเดิมจะไม่ถูกลบ)', deletedBudget: '(งบถูกลบแล้ว)'
+        deleteBudgetConfirm: 'คุณต้องการลบหมวดหมู่นี้ใช่หรือไม่?\n(ประวัติรายการใช้จ่ายเดิมจะไม่ถูกลบ)', deletedBudget: '(งบถูกลบแล้ว)',
+        quickSaveMsg: 'สำรองข้อมูลเรียบร้อยแล้ว!'
       },
       en: {
         welcome: 'Welcome', appTitle: 'Wealth', appSubtitle: 'Plan',
@@ -78,7 +79,8 @@
         statusPaid: 'Paid', statusPending: 'Pending',
         themeAuto: 'Auto (System setting)',
         liquidDay: '(Day)', liquidNight: '(Night)',
-        deleteBudgetConfirm: 'Delete this category?\n(Past transactions will remain safe)', deletedBudget: '(Deleted)'
+        deleteBudgetConfirm: 'Delete this category?\n(Past transactions will remain safe)', deletedBudget: '(Deleted)',
+        quickSaveMsg: 'Backup downloaded successfully!'
       }
     };
 
@@ -155,8 +157,8 @@
 
     function App() {
       // Settings State
-      const [lang, setLang] = useLocalStorage('wealth_lang_v5', 'th');
-      const [themeMode, setThemeMode] = useLocalStorage('wealth_theme_mode_v5', 'auto');
+      const [lang, setLang] = useLocalStorage('wealth_lang_final', 'th');
+      const [themeMode, setThemeMode] = useLocalStorage('wealth_theme_mode_final', 'auto');
       
       const currentLang = dict[lang] ? lang : 'th';
       const t = (key) => dict[currentLang][key] || key;
@@ -178,9 +180,9 @@
       const activeTheme = themeMode === 'auto' ? (isSystemDark ? 'liquid_night' : 'liquid_day') : themeMode;
       const thm = getThemeStyles(activeTheme);
 
-      // Data State
-      const [transactions, setTransactions] = useLocalStorage('wealth_tx_v9', getInitialTransactions);
-      const [budgets, setBudgets] = useLocalStorage('wealth_bd_v9', getInitialBudgets);
+      // Data State - Locked Version "final" to prevent resets
+      const [transactions, setTransactions] = useLocalStorage('wealth_tx_final', getInitialTransactions);
+      const [budgets, setBudgets] = useLocalStorage('wealth_bd_final', getInitialBudgets);
       
       // UI State
       const [activeTab, setActiveTab] = useState('form');
@@ -283,7 +285,7 @@
       };
 
       const handleExportData = () => {
-        const data = { version: 9, budgets, transactions };
+        const data = { version: "final", budgets, transactions };
         const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
@@ -291,7 +293,6 @@
         document.body.appendChild(link); link.click(); document.body.removeChild(link);
       };
       
-      // ฟังก์ชันส่งออกเป็นไฟล์ CSV สำหรับเปิดใน Excel
       const handleExportCSV = () => {
         let csvContent = lang === 'th' 
           ? "วันที่,ประเภท,ชื่อรายการ,หมวดหมู่,จำนวนเงิน,สถานะ\n"
@@ -322,7 +323,6 @@
           csvContent += `${date},${typeStr},${title},${budgetName},${amount},${status}\n`;
         });
 
-        // ใช้ BOM \uFEFF เพื่อให้ Excel อ่านสระภาษาไทยได้ถูกต้อง
         const bom = "\uFEFF";
         const blob = new Blob([bom + csvContent], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
@@ -738,36 +738,6 @@
             </div>
           )}
 
-          {/* Simulator Modal */}
-          {isSimulatorOpen && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
-              <div className={`rounded-[2.5rem] p-6 md:p-8 w-full max-w-md shadow-2xl relative modal-enter border ${thm.card}`}>
-                <button onClick={() => { setIsSimulatorOpen(false); setSimName(''); setSimAmount(''); }} className={`absolute top-5 right-5 p-2 rounded-full active:scale-95 ${thm.isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-500'}`}><X className="w-5 h-5" /></button>
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="p-3 bg-indigo-500/10 rounded-2xl text-indigo-500 border border-indigo-500/20"><Calculator className="w-6 h-6" /></div>
-                  <div><h3 className={`text-lg font-bold ${thm.textMain}`}>{t('simTitle')}</h3><p className={`text-[11px] font-medium tracking-wide ${thm.muted}`}>{t('simSub')}</p></div>
-                </div>
-                <div className="space-y-4 mb-8">
-                  <div className="space-y-1.5">
-                    <label className={`text-[11px] font-semibold uppercase tracking-wider ml-1 ${thm.muted}`}>{t('simItem')}</label>
-                    <input type="text" value={simName} onChange={(e) => setSimName(e.target.value)} placeholder="..." className={`input-impeccable w-full px-4 py-3.5 text-[16px] md:text-sm rounded-2xl outline-none shadow-sm ${thm.input}`} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className={`text-[11px] font-semibold uppercase tracking-wider ml-1 ${thm.muted}`}>{t('simPrice')}</label>
-                    <input type="number" value={simAmount} onChange={(e) => setSimAmount(e.target.value)} placeholder="0.00" className={`input-impeccable tabular-nums w-full px-4 py-3.5 text-[16px] md:text-base rounded-2xl outline-none shadow-sm ${thm.input}`} />
-                  </div>
-                </div>
-                <div className={`rounded-3xl p-5 border shadow-inner ${thm.isDark ? 'bg-slate-900/50 border-slate-800' : 'bg-slate-50/80 border-slate-100'}`}>
-                  <div className="flex justify-between items-center mb-3"><span className={`text-sm font-medium ${thm.muted}`}>{t('simBefore')}</span><span className={`text-sm font-semibold tabular-nums ${thm.textMain}`}>{formatMoney(totalBalance)}</span></div>
-                  <div className="flex justify-between items-center mb-4"><span className={`text-sm font-medium ${thm.muted}`}>{t('simDeduct')}</span><span className="text-sm font-semibold tabular-nums text-rose-500">-{formatMoney(simAmountNum)}</span></div>
-                  <div className={`h-px w-full mb-4 ${thm.borderSoft} border-b`}></div>
-                  <div className="flex justify-between items-end"><span className={`text-sm font-bold tracking-wide ${thm.textMain}`}>{t('simRemain')}</span><span className={`text-2xl font-bold tabular-nums tracking-tight ${simResult < 0 ? 'text-rose-500' : (thm.isDark?'text-emerald-400':'text-emerald-500')}`}>{formatMoney(simResult)}</span></div>
-                  {simResult < 0 && ( <div className={`mt-4 flex items-center gap-2 p-3 rounded-2xl border shadow-sm ${thm.isDark ? 'bg-rose-950/50 border-rose-900 text-rose-400' : 'bg-rose-50 border-rose-100 text-rose-500'}`}><AlertCircle className="w-4 h-4 shrink-0" /><span className="text-[11px] font-medium leading-tight">{t('simWarn')}</span></div> )}
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* COMPACT HEADER */}
           <header className={`flex-none z-20 pt-3 pb-4 px-4 md:px-8 relative ${thm.header}`}>
             <div className="max-w-4xl mx-auto">
@@ -780,6 +750,9 @@
                   <h1 className={`text-lg font-bold tracking-wide ${thm.textMain}`}>{t('appTitle')}<span className="text-indigo-500 font-medium">{t('appSubtitle')}</span></h1>
                 </div>
                 <div className="flex items-center gap-1.5">
+                  <button onClick={handleExportData} title={t('exportData')} className={`p-2 rounded-xl active:scale-95 border ${thm.isDark ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-600 border-emerald-100/50'}`}>
+                    <Save className="w-4 h-4" />
+                  </button>
                   <button onClick={() => setIsSimulatorOpen(true)} className={`p-2 rounded-xl active:scale-95 border ${thm.isDark ? 'bg-indigo-500/20 text-indigo-400 border-indigo-500/30' : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-500 border-indigo-100/50'}`}><Calculator className="w-4 h-4" /></button>
                   <div className={`h-5 w-px mx-1 ${thm.isDark ? 'bg-slate-700' : 'bg-slate-200'}`}></div>
                   <button onClick={() => setIsSettingsOpen(true)} className={`p-2 rounded-xl active:scale-95 border shadow-sm ${thm.isDark ? 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700' : 'bg-white text-slate-400 border-slate-100 hover:bg-slate-50'}`}><Settings className="w-4 h-4" /></button>
