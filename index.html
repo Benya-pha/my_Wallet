@@ -43,7 +43,7 @@
         freeCash: 'คงเหลือ', income: 'รับ', expense: 'จ่าย',
         simTitle: 'ทดลองใช้เงิน', simSub: 'จำลองรายจ่าย (ไม่บันทึกจริง)',
         simItem: 'สิ่งที่จะซื้อ', simPrice: 'ราคา', simBefore: 'ยอดก่อนซื้อ:', simDeduct: 'หักจำลอง:', simRemain: 'เงินจะเหลือ:', simWarn: 'คำเตือน: ยอดเงินจะติดลบ',
-        importData: 'นำเข้า', exportData: 'สำรองข้อมูล',
+        importData: 'นำเข้าข้อมูล', exportData: 'สำรองข้อมูล (JSON)', exportCSV: 'ส่งออกเป็น Excel (CSV)',
         addRecord: 'บันทึกรายการใหม่',
         typeBudget: 'จ่ายจากงบ', typeExpense: 'จ่ายนอกงบ', typeIncome: 'รายรับ', typeCreate: 'ตั้งงบเพิ่ม',
         itemName: 'ชื่อรายการ', amount: 'จำนวนเงิน (บาท)', date: 'วันที่',
@@ -64,7 +64,7 @@
         freeCash: 'Balance', income: 'In', expense: 'Out',
         simTitle: 'Simulator', simSub: 'Simulate expense (Not saved)',
         simItem: 'Item to buy', simPrice: 'Price', simBefore: 'Before:', simDeduct: 'Sim. Deduct:', simRemain: 'Remaining:', simWarn: 'Warning: Balance will be negative',
-        importData: 'Import', exportData: 'Backup',
+        importData: 'Import Data', exportData: 'Backup (JSON)', exportCSV: 'Export to Excel (CSV)',
         addRecord: 'Add New Record',
         typeBudget: 'From Budget', typeExpense: 'Extra Expense', typeIncome: 'Income', typeCreate: 'New Budget',
         itemName: 'Item Name', amount: 'Amount', date: 'Date',
@@ -289,6 +289,49 @@
         const link = document.createElement('a');
         link.href = url; link.download = `WealthPlan_Backup_${new Date().toISOString().split('T')[0]}.json`;
         document.body.appendChild(link); link.click(); document.body.removeChild(link);
+      };
+      
+      // ฟังก์ชันส่งออกเป็นไฟล์ CSV สำหรับเปิดใน Excel
+      const handleExportCSV = () => {
+        let csvContent = lang === 'th' 
+          ? "วันที่,ประเภท,ชื่อรายการ,หมวดหมู่,จำนวนเงิน,สถานะ\n"
+          : "Date,Type,Item Name,Category,Amount,Status\n";
+          
+        transactions.forEach(tr => {
+          const date = tr.date;
+          let typeStr = "";
+          if (lang === 'th') {
+            typeStr = tr.type === 'income' ? 'รายรับ' : (tr.type === 'expense' ? 'จ่ายนอกงบ' : 'จ่ายจากงบ');
+          } else {
+            typeStr = tr.type === 'income' ? 'Income' : (tr.type === 'expense' ? 'Extra Expense' : 'From Budget');
+          }
+          
+          const title = `"${tr.title.replace(/"/g, '""')}"`;
+          let budgetName = '-';
+          if (tr.type === 'budget_expense') {
+            const b = budgets.find(b => b.id === tr.budgetId);
+            budgetName = b ? `"${b.name.replace(/"/g, '""')}"` : `"${(tr.budgetNameSnapshot || '').replace(/"/g, '""')}"`;
+          }
+          
+          const amount = tr.amount;
+          let status = '-';
+          if (tr.type !== 'income') {
+            status = tr.isPaid ? t('statusPaid') : t('statusPending');
+          }
+          
+          csvContent += `${date},${typeStr},${title},${budgetName},${amount},${status}\n`;
+        });
+
+        // ใช้ BOM \uFEFF เพื่อให้ Excel อ่านสระภาษาไทยได้ถูกต้อง
+        const bom = "\uFEFF";
+        const blob = new Blob([bom + csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `WealthPlan_History_${new Date().toISOString().split('T')[0]}.csv`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
       };
 
       const handleImportFile = (e) => {
@@ -676,12 +719,17 @@
                   
                   <div className="space-y-3">
                     <label className={`text-xs font-semibold uppercase tracking-wider ${thm.muted}`}>{t('dataManagement')}</label>
-                    <div className="flex gap-2">
-                      <button onClick={() => importFileRef.current.click()} className={`flex-1 flex justify-center items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-xl border active:scale-95 ${thm.isDark ? 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
-                        <Upload className="w-4 h-4" /> {t('importData')}
-                      </button>
-                      <button onClick={handleExportData} className={`flex-1 flex justify-center items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-xl border active:scale-95 ${thm.isDark ? 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
-                        <Download className="w-4 h-4" /> {t('exportData')}
+                    <div className="flex flex-col gap-2">
+                      <div className="flex gap-2">
+                        <button onClick={() => importFileRef.current.click()} className={`flex-1 flex justify-center items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-xl border active:scale-95 ${thm.isDark ? 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+                          <Upload className="w-4 h-4" /> {t('importData')}
+                        </button>
+                        <button onClick={handleExportData} className={`flex-1 flex justify-center items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-xl border active:scale-95 ${thm.isDark ? 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+                          <Download className="w-4 h-4" /> {t('exportData')}
+                        </button>
+                      </div>
+                      <button onClick={handleExportCSV} className={`w-full flex justify-center items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-xl border active:scale-95 transition-colors ${thm.isDark ? 'bg-emerald-900/30 border-emerald-800 text-emerald-400 hover:bg-emerald-900/50' : 'bg-emerald-50 border-emerald-200 text-emerald-600 hover:bg-emerald-100'}`}>
+                        <FileText className="w-4 h-4" /> {t('exportCSV')}
                       </button>
                     </div>
                   </div>
