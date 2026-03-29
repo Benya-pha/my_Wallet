@@ -57,8 +57,7 @@
         statusPaid: 'ชำระแล้ว', statusPending: 'รอชำระ',
         themeAuto: 'Auto (System setting)',
         liquidDay: '(Day)', liquidNight: '(Night)',
-        deleteBudgetConfirm: 'คุณต้องการลบหมวดหมู่นี้ใช่หรือไม่?\n(ประวัติรายการใช้จ่ายเดิมจะไม่ถูกลบ)', deletedBudget: '(งบถูกลบแล้ว)',
-        quickSaveMsg: 'สำรองข้อมูลเรียบร้อยแล้ว!'
+        deleteBudgetConfirm: 'คุณต้องการลบหมวดหมู่นี้ใช่หรือไม่?\n(ประวัติรายการใช้จ่ายเดิมจะไม่ถูกลบ)', deletedBudget: '(งบถูกลบแล้ว)'
       },
       en: {
         welcome: 'Welcome', appTitle: 'Wealth', appSubtitle: 'Plan',
@@ -79,12 +78,11 @@
         statusPaid: 'Paid', statusPending: 'Pending',
         themeAuto: 'Auto (System setting)',
         liquidDay: '(Day)', liquidNight: '(Night)',
-        deleteBudgetConfirm: 'Delete this category?\n(Past transactions will remain safe)', deletedBudget: '(Deleted)',
-        quickSaveMsg: 'Backup downloaded successfully!'
+        deleteBudgetConfirm: 'Delete this category?\n(Past transactions will remain safe)', deletedBudget: '(Deleted)'
       }
     };
 
-    // --- Custom Hook for Local Storage ---
+    // --- ENHANCED Custom Hook for Local Storage (Strict Auto-Save) ---
     function useLocalStorage(key, initialValue) {
       const [storedValue, setStoredValue] = useState(() => {
         try {
@@ -92,11 +90,20 @@
           return item ? JSON.parse(item) : (typeof initialValue === 'function' ? initialValue() : initialValue);
         } catch { return typeof initialValue === 'function' ? initialValue() : initialValue; }
       });
+
+      // Force auto-save to device memory every time data changes
+      useEffect(() => {
+        try {
+          window.localStorage.setItem(key, JSON.stringify(storedValue));
+        } catch (error) {
+          console.error('Auto-save failed:', error);
+        }
+      }, [key, storedValue]);
+
       const setValue = (value) => {
         try {
           const valueToStore = value instanceof Function ? value(storedValue) : value;
           setStoredValue(valueToStore);
-          window.localStorage.setItem(key, JSON.stringify(valueToStore));
         } catch (e) {}
       };
       return [storedValue, setValue];
@@ -725,7 +732,7 @@
                           <Upload className="w-4 h-4" /> {t('importData')}
                         </button>
                         <button onClick={handleExportData} className={`flex-1 flex justify-center items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-xl border active:scale-95 ${thm.isDark ? 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
-                          <Download className="w-4 h-4" /> {t('exportData')}
+                          <Download className="w-4 h-4" /> JSON
                         </button>
                       </div>
                       <button onClick={handleExportCSV} className={`w-full flex justify-center items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-xl border active:scale-95 transition-colors ${thm.isDark ? 'bg-emerald-900/30 border-emerald-800 text-emerald-400 hover:bg-emerald-900/50' : 'bg-emerald-50 border-emerald-200 text-emerald-600 hover:bg-emerald-100'}`}>
@@ -750,7 +757,8 @@
                   <h1 className={`text-lg font-bold tracking-wide ${thm.textMain}`}>{t('appTitle')}<span className="text-indigo-500 font-medium">{t('appSubtitle')}</span></h1>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <button onClick={handleExportData} title={t('exportData')} className={`p-2 rounded-xl active:scale-95 border ${thm.isDark ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-600 border-emerald-100/50'}`}>
+                  {/* ปุ่ม Save ลัดที่เพิ่มมาใหม่ */}
+                  <button onClick={() => { handleExportData(); alert(t('quickSaveMsg')); }} className={`p-2 rounded-xl active:scale-95 border ${thm.isDark ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-600 border-emerald-100/50'}`}>
                     <Save className="w-4 h-4" />
                   </button>
                   <button onClick={() => setIsSimulatorOpen(true)} className={`p-2 rounded-xl active:scale-95 border ${thm.isDark ? 'bg-indigo-500/20 text-indigo-400 border-indigo-500/30' : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-500 border-indigo-100/50'}`}><Calculator className="w-4 h-4" /></button>
