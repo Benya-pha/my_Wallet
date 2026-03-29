@@ -33,7 +33,7 @@
       Wallet, ArrowUpRight, ArrowDownRight, Briefcase, CheckCircle2, 
       Circle, Image as ImageIcon, Download, Upload, Plus, CreditCard,
       FileText, Calendar, Clock, ChevronRight, Calculator, X, AlertCircle,
-      LayoutGrid, History, Settings
+      LayoutGrid, History, Settings, Trash2
     } from 'lucide-react';
 
     // --- i18n Dictionary ---
@@ -55,7 +55,9 @@
         tabBudget: 'งบประมาณ', tabForm: 'บันทึก', tabHistory: 'ประวัติ',
         settings: 'การตั้งค่า', language: 'ภาษา', theme: 'ธีมแอปพลิเคชัน', dataManagement: 'จัดการข้อมูล',
         statusPaid: 'ชำระแล้ว', statusPending: 'รอชำระ',
-        autoTheme: 'ธีมกระจก (Auto Theme)', autoThemeDesc: 'ระบบจะสลับโหมดสว่าง/มืด อัตโนมัติตามการตั้งค่าโทรศัพท์'
+        themeAuto: '✨ อัตโนมัติ (Auto)', dayMode: '☀️ โหมดสว่างปกติ (Day)', nightMode: '🌙 โหมดมืดปกติ (Night)',
+        liquidDay: '💧 กระจกใสสว่าง (Liquid Day)', liquidNight: '🌌 กระจกใสมืด (Liquid Night)',
+        deleteBudgetConfirm: 'คุณต้องการลบหมวดหมู่นี้ใช่หรือไม่?\n(ประวัติรายการใช้จ่ายเดิมจะไม่ถูกลบ)', deletedBudget: '(งบถูกลบแล้ว)'
       },
       en: {
         welcome: 'Welcome', appTitle: 'Wealth', appSubtitle: 'Plan',
@@ -74,7 +76,9 @@
         tabBudget: 'Budgets', tabForm: 'Add', tabHistory: 'History',
         settings: 'Settings', language: 'Language', theme: 'Application Theme', dataManagement: 'Data Management',
         statusPaid: 'Paid', statusPending: 'Pending',
-        autoTheme: 'Liquid Glass (Auto)', autoThemeDesc: 'Theme smoothly switches based on your phone system settings.'
+        themeAuto: '✨ Auto (System setting)', dayMode: '☀️ Standard Light (Day)', nightMode: '🌙 Standard Dark (Night)',
+        liquidDay: '💧 Liquid Glass (Day)', liquidNight: '🌌 Liquid Glass (Night)',
+        deleteBudgetConfirm: 'Delete this category?\n(Past transactions will remain safe)', deletedBudget: '(Deleted)'
       }
     };
 
@@ -96,9 +100,9 @@
       return [storedValue, setValue];
     }
 
-    // --- Dynamic Liquid Glass Theme ---
-    const getThemeStyles = (isDark) => {
-      if(isDark) return {
+    // --- Theme Config ---
+    const getThemeStyles = (activeTheme) => {
+      if(activeTheme === 'liquid_night') return {
         app: 'bg-slate-950', textMain: 'text-slate-100', muted: 'text-slate-400',
         card: 'bg-slate-900/60 backdrop-blur-xl border-slate-800/50 shadow-md',
         header: 'bg-slate-900/60 backdrop-blur-md border-slate-800',
@@ -107,6 +111,25 @@
         tabActive: 'bg-gradient-to-tr from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-900/50',
         borderSoft: 'border-slate-800', isDark: true, isLiquid: true
       };
+      if(activeTheme === 'day') return {
+        app: 'bg-slate-50', textMain: 'text-slate-800', muted: 'text-slate-500',
+        card: 'bg-white border-slate-200 shadow-sm',
+        header: 'bg-white border-b border-slate-200 shadow-sm',
+        nav: 'bg-white border-t border-slate-200',
+        input: 'bg-white border-slate-300 focus:ring-blue-100 text-slate-800',
+        tabActive: 'bg-blue-600 text-white shadow-md',
+        borderSoft: 'border-slate-200', isDark: false, isLiquid: false
+      };
+      if(activeTheme === 'night') return {
+        app: 'bg-slate-900', textMain: 'text-slate-100', muted: 'text-slate-400',
+        card: 'bg-slate-800 border-slate-700 shadow-sm',
+        header: 'bg-slate-950 border-b border-slate-800 shadow-sm',
+        nav: 'bg-slate-950 border-t border-slate-800',
+        input: 'bg-slate-900 border-slate-700 focus:ring-indigo-500/50 text-slate-100',
+        tabActive: 'bg-indigo-600 text-white shadow-md',
+        borderSoft: 'border-slate-700', isDark: true, isLiquid: false
+      };
+      // Default: liquid_day
       return {
         app: 'bg-[#FDFBF7]', textMain: 'text-slate-700', muted: 'text-slate-400',
         card: 'bg-white/70 backdrop-blur-xl border-white/60 shadow-sm',
@@ -120,30 +143,18 @@
 
     const getBudgetTheme = (spent, initialAmount, isDark) => {
       if (initialAmount <= 0) return { bg: isDark?'bg-slate-800':'bg-slate-200', text: isDark?'text-slate-400':'text-slate-600', light: isDark?'bg-slate-800/50 border-slate-700':'bg-slate-50 border-slate-200', bar: isDark?'bg-slate-700':'bg-slate-300' };
-      
       const remaining = initialAmount - spent;
       const percentSpent = (spent / initialAmount) * 100;
-
       if (remaining < 0) {
-        return isDark 
-          ? { bg: 'bg-red-950/80', text: 'text-rose-400', light: 'bg-rose-950/30 border-rose-900/50', bar: 'bg-rose-700', label: 'text-rose-200 bg-rose-950 border-rose-900' }
-          : { bg: 'bg-rose-800', text: 'text-rose-800', light: 'bg-rose-50 border-rose-300', bar: 'bg-rose-800', label: 'text-rose-100 bg-rose-800 border-rose-800' };
+        return isDark ? { bg: 'bg-red-950/80', text: 'text-rose-400', light: 'bg-rose-950/30 border-rose-900/50', bar: 'bg-rose-700', label: 'text-rose-200 bg-rose-950 border-rose-900' } : { bg: 'bg-rose-800', text: 'text-rose-800', light: 'bg-rose-50 border-rose-300', bar: 'bg-rose-800', label: 'text-rose-100 bg-rose-800 border-rose-800' };
       } else if (remaining === 0 || percentSpent >= 100) {
-        return isDark
-          ? { bg: 'bg-rose-900/50', text: 'text-rose-300', light: 'bg-rose-900/20 border-rose-800/50', bar: 'bg-rose-500', label: 'text-rose-300 bg-slate-900 border-slate-700' }
-          : { bg: 'bg-rose-400', text: 'text-rose-600', light: 'bg-rose-50 border-rose-200', bar: 'bg-rose-400', label: 'text-rose-600 bg-white border-slate-100' };
+        return isDark ? { bg: 'bg-rose-900/50', text: 'text-rose-300', light: 'bg-rose-900/20 border-rose-800/50', bar: 'bg-rose-500', label: 'text-rose-300 bg-slate-900 border-slate-700' } : { bg: 'bg-rose-400', text: 'text-rose-600', light: 'bg-rose-50 border-rose-200', bar: 'bg-rose-400', label: 'text-rose-600 bg-white border-slate-100' };
       } else if (percentSpent >= 80) {
-        return isDark
-          ? { bg: 'bg-orange-900/50', text: 'text-orange-300', light: 'bg-orange-900/20 border-orange-800/50', bar: 'bg-orange-500', label: 'text-orange-300 bg-slate-900 border-slate-700' }
-          : { bg: 'bg-orange-300', text: 'text-orange-700', light: 'bg-orange-50/50 border-orange-200', bar: 'bg-orange-300', label: 'text-orange-700 bg-white border-slate-100' };
+        return isDark ? { bg: 'bg-orange-900/50', text: 'text-orange-300', light: 'bg-orange-900/20 border-orange-800/50', bar: 'bg-orange-500', label: 'text-orange-300 bg-slate-900 border-slate-700' } : { bg: 'bg-orange-300', text: 'text-orange-700', light: 'bg-orange-50/50 border-orange-200', bar: 'bg-orange-300', label: 'text-orange-700 bg-white border-slate-100' };
       } else if (percentSpent >= 50) {
-        return isDark
-          ? { bg: 'bg-amber-900/50', text: 'text-amber-300', light: 'bg-amber-900/20 border-amber-800/50', bar: 'bg-amber-500', label: 'text-amber-300 bg-slate-900 border-slate-700' }
-          : { bg: 'bg-amber-300', text: 'text-amber-700', light: 'bg-amber-50/50 border-amber-200', bar: 'bg-amber-300', label: 'text-amber-700 bg-white border-slate-100' };
+        return isDark ? { bg: 'bg-amber-900/50', text: 'text-amber-300', light: 'bg-amber-900/20 border-amber-800/50', bar: 'bg-amber-500', label: 'text-amber-300 bg-slate-900 border-slate-700' } : { bg: 'bg-amber-300', text: 'text-amber-700', light: 'bg-amber-50/50 border-amber-200', bar: 'bg-amber-300', label: 'text-amber-700 bg-white border-slate-100' };
       } else {
-        return isDark
-          ? { bg: 'bg-emerald-900/50', text: 'text-emerald-300', light: 'bg-emerald-900/20 border-emerald-800/50', bar: 'bg-emerald-500', label: 'text-emerald-300 bg-slate-900 border-slate-700' }
-          : { bg: 'bg-emerald-300', text: 'text-emerald-700', light: 'bg-emerald-50/50 border-emerald-200', bar: 'bg-emerald-300', label: 'text-emerald-700 bg-white border-slate-100' };
+        return isDark ? { bg: 'bg-emerald-900/50', text: 'text-emerald-300', light: 'bg-emerald-900/20 border-emerald-800/50', bar: 'bg-emerald-500', label: 'text-emerald-300 bg-slate-900 border-slate-700' } : { bg: 'bg-emerald-300', text: 'text-emerald-700', light: 'bg-emerald-50/50 border-emerald-200', bar: 'bg-emerald-300', label: 'text-emerald-700 bg-white border-slate-100' };
       }
     };
 
@@ -160,19 +171,19 @@
     }];
 
     function App() {
-      // App Settings State
-      const [lang, setLang] = useLocalStorage('wealth_lang_v4', 'th');
+      // Settings State
+      const [lang, setLang] = useLocalStorage('wealth_lang_v5', 'th');
+      const [themeMode, setThemeMode] = useLocalStorage('wealth_theme_mode_v5', 'auto');
       
       const currentLang = dict[lang] ? lang : 'th';
       const t = (key) => dict[currentLang][key] || key;
 
-      // System Theme Detection
-      const [isDarkMode, setIsDarkMode] = useState(false);
-
+      // Theme Evaluation
+      const [isSystemDark, setIsSystemDark] = useState(false);
       useEffect(() => {
         const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-        setIsDarkMode(mediaQuery.matches);
-        const handler = (e) => setIsDarkMode(e.matches);
+        setIsSystemDark(mediaQuery.matches);
+        const handler = (e) => setIsSystemDark(e.matches);
         if (mediaQuery.addEventListener) mediaQuery.addEventListener('change', handler);
         else mediaQuery.addListener(handler);
         return () => {
@@ -181,11 +192,12 @@
         };
       }, []);
 
-      const thm = getThemeStyles(isDarkMode);
+      const activeTheme = themeMode === 'auto' ? (isSystemDark ? 'liquid_night' : 'liquid_day') : themeMode;
+      const thm = getThemeStyles(activeTheme);
 
       // Data State
-      const [transactions, setTransactions] = useLocalStorage('wealth_tx_v8', getInitialTransactions);
-      const [budgets, setBudgets] = useLocalStorage('wealth_bd_v8', getInitialBudgets);
+      const [transactions, setTransactions] = useLocalStorage('wealth_tx_v9', getInitialTransactions);
+      const [budgets, setBudgets] = useLocalStorage('wealth_bd_v9', getInitialBudgets);
       
       // UI State
       const [activeTab, setActiveTab] = useState('form');
@@ -201,7 +213,7 @@
       const fileInputRef = useRef(null);
       const importFileRef = useRef(null);
 
-      // Splash Screen State
+      // Splash Screen
       const [showSplash, setShowSplash] = useState(() => {
         try { return !sessionStorage.getItem('wealth_splash_seen'); } 
         catch(e) { return true; }
@@ -266,7 +278,9 @@
           if (formType === 'expense') newTx.isPaid = formData.isPaid;
           else if (formType === 'budget_expense') {
             if (!formData.budgetId) { alert(t('budgetSelect')); return; }
+            const targetB = budgets.find(b => b.id === formData.budgetId);
             newTx.budgetId = formData.budgetId;
+            newTx.budgetNameSnapshot = targetB ? targetB.name : ''; // Snapshot in case budget is deleted later
           }
           setTransactions([newTx, ...transactions]);
         }
@@ -278,9 +292,15 @@
       const togglePaidStatus = (id) => {
         setTransactions(transactions.map(t => t.id === id ? { ...t, isPaid: !t.isPaid } : t));
       };
+      
+      const handleDeleteBudget = (id, name) => {
+        if(window.confirm(`${t('deleteBudgetConfirm')}\n\n[ ${name} ]`)) {
+          setBudgets(budgets.filter(b => b.id !== id));
+        }
+      };
 
       const handleExportData = () => {
-        const data = { version: 8, budgets, transactions };
+        const data = { version: 9, budgets, transactions };
         const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
@@ -306,10 +326,6 @@
           if (importFileRef.current) importFileRef.current.value = '';
         };
         reader.readAsText(file);
-      };
-
-      const handleImportClick = () => {
-        if (importFileRef.current) importFileRef.current.click();
       };
 
       const formatMoney = (amount) => new Intl.NumberFormat(lang === 'th' ? 'th-TH' : 'en-US', { style: 'currency', currency: 'THB', minimumFractionDigits: 2 }).format(amount);
@@ -456,9 +472,14 @@
                     <div className={`absolute top-0 left-0 w-1.5 h-full ${themeStyle.bg}`}></div>
                     <div className="flex justify-between items-start mb-4 pl-1">
                       <h4 className={`font-semibold text-[15px] ${themeStyle.text} pr-2`}>{b.name}</h4>
-                      <span className={`text-[11px] px-2.5 py-1.5 rounded-xl font-medium whitespace-nowrap tabular-nums shadow-sm border ${themeStyle.label}`}>
-                        {formatMoney(b.initialAmount)}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[11px] px-2.5 py-1.5 rounded-xl font-medium whitespace-nowrap tabular-nums shadow-sm border ${themeStyle.label}`}>
+                          {formatMoney(b.initialAmount)}
+                        </span>
+                        <button onClick={() => handleDeleteBudget(b.id, b.name)} className={`p-1.5 rounded-lg border transition-colors ${thm.isDark ? 'bg-slate-800/50 border-slate-700 text-slate-500 hover:text-rose-400 hover:bg-rose-950/50 hover:border-rose-900/50' : 'bg-white border-slate-200 text-slate-400 hover:text-rose-500 hover:bg-rose-50 hover:border-rose-200'}`}>
+                           <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
                     <div className="space-y-3 pl-1">
                       <div className="flex justify-between text-xs">
@@ -523,7 +544,13 @@
                      let bName = '-';
                      if (tr.type === 'budget_expense') {
                        const b = budgets.find(b => b.id === tr.budgetId);
-                       if (b) { bName = b.name; const style = getBudgetTheme(b.spent, b.initialAmount, thm.isDark); tag = { bg: style.light.split(' ')[0], text: style.text, border: style.light.split(' ')[1] }; }
+                       if (b) { 
+                         bName = b.name; 
+                         const style = getBudgetTheme(b.spent, b.initialAmount, thm.isDark); 
+                         tag = { bg: style.light.split(' ')[0], text: style.text, border: style.light.split(' ')[1] }; 
+                       } else {
+                         bName = tr.budgetNameSnapshot || t('deletedBudget');
+                       }
                      }
                      return (
                      <div key={tr.id} className={`flex flex-col gap-2 pb-4 border-b last:border-0 last:pb-0 ${thm.borderSoft}`}>
@@ -589,15 +616,16 @@
             .animate-pulse-soft { animation: pulseSoft 2s infinite ease-in-out; }
           `}} />
 
-          {/* Hidden Data Input */}
           <input type="file" accept=".json" className="hidden" ref={importFileRef} onChange={handleImportFile} />
 
-          {/* Background Blobs (Liquid Auto Theme) */}
-          <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
-            <div className={`absolute top-[-10%] left-[-10%] w-[50%] h-[40%] blur-[120px] rounded-full ${thm.isDark ? 'bg-indigo-900/30' : 'bg-pink-200/30'}`} />
-            <div className={`absolute bottom-[-10%] right-[-10%] w-[40%] h-[50%] blur-[120px] rounded-full ${thm.isDark ? 'bg-blue-900/20' : 'bg-blue-200/30'}`} />
-            <div className={`absolute top-[20%] right-[-10%] w-[30%] h-[30%] blur-[100px] rounded-full ${thm.isDark ? 'bg-purple-900/20' : 'bg-purple-200/20'}`} />
-          </div>
+          {/* Background Blobs */}
+          {thm.isLiquid && (
+            <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
+              <div className={`absolute top-[-10%] left-[-10%] w-[50%] h-[40%] blur-[120px] rounded-full ${thm.isDark ? 'bg-indigo-900/30' : 'bg-pink-200/30'}`} />
+              <div className={`absolute bottom-[-10%] right-[-10%] w-[40%] h-[50%] blur-[120px] rounded-full ${thm.isDark ? 'bg-blue-900/20' : 'bg-blue-200/30'}`} />
+              <div className={`absolute top-[20%] right-[-10%] w-[30%] h-[30%] blur-[100px] rounded-full ${thm.isDark ? 'bg-purple-900/20' : 'bg-purple-200/20'}`} />
+            </div>
+          )}
 
           {/* Splash Screen */}
           {showSplash && (
@@ -644,11 +672,18 @@
                   
                   <div className="space-y-2">
                     <label className={`text-xs font-semibold uppercase tracking-wider ${thm.muted}`}>{t('theme')}</label>
-                    <div className={`p-4 rounded-xl border ${thm.isDark ? 'bg-slate-900/50 border-slate-800' : 'bg-slate-50 border-slate-200/50'}`}>
-                      <p className={`text-sm font-medium flex items-center gap-2 ${thm.textMain}`}>
-                        {thm.isDark ? '🌌' : '💧'} {t('autoTheme')}
-                      </p>
-                      <p className={`text-[10px] mt-1 ${thm.muted}`}>{t('autoThemeDesc')}</p>
+                    <div className="flex flex-col gap-2">
+                      {[
+                        { id: 'auto', label: t('themeAuto') },
+                        { id: 'liquid_day', label: t('liquidDay') },
+                        { id: 'liquid_night', label: t('liquidNight') },
+                        { id: 'day', label: t('dayMode') },
+                        { id: 'night', label: t('nightMode') }
+                      ].map(th => (
+                        <button key={th.id} onClick={() => setThemeMode(th.id)} className={`text-left px-4 py-3 text-sm font-medium rounded-xl border transition-all ${themeMode === th.id ? 'border-indigo-500 text-indigo-500 bg-indigo-500/10' : `${thm.borderSoft} ${thm.textMain} hover:border-indigo-300`}`}>
+                          {th.label}
+                        </button>
+                      ))}
                     </div>
                   </div>
 
@@ -657,7 +692,7 @@
                   <div className="space-y-3">
                     <label className={`text-xs font-semibold uppercase tracking-wider ${thm.muted}`}>{t('dataManagement')}</label>
                     <div className="flex gap-2">
-                      <button onClick={handleImportClick} className={`flex-1 flex justify-center items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-xl border active:scale-95 ${thm.isDark ? 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+                      <button onClick={() => importFileRef.current.click()} className={`flex-1 flex justify-center items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-xl border active:scale-95 ${thm.isDark ? 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
                         <Upload className="w-4 h-4" /> {t('importData')}
                       </button>
                       <button onClick={handleExportData} className={`flex-1 flex justify-center items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-xl border active:scale-95 ${thm.isDark ? 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
