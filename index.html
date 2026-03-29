@@ -9,8 +9,8 @@
   <meta name="apple-mobile-web-app-title" content="WealthPlan">
   <title>WealthPlan</title>
   
-  <link rel="icon" type="image/png" href="./logo.png?v=5">
-  <link rel="apple-touch-icon" href="./logo.png?v=5">
+  <link rel="icon" type="image/png" href="./logo.png?v=6">
+  <link rel="apple-touch-icon" href="./logo.png?v=6">
   <meta name="theme-color" content="#FDFBF7">
   
   <script src="https://cdn.tailwindcss.com"></script>
@@ -60,7 +60,7 @@
         statusPaid: 'ชำระแล้ว', statusPending: 'รอชำระ',
         themeAuto: 'Auto (System setting)', liquidDay: '(Day)', liquidNight: '(Night)',
         deleteBudgetConfirm: 'คุณต้องการลบหมวดหมู่นี้ใช่หรือไม่?\n(ประวัติรายการใช้จ่ายเดิมจะไม่ถูกลบ)', deletedBudget: '(งบถูกลบแล้ว)',
-        quickSaveMsg: 'สำรองข้อมูลลงเครื่องเรียบร้อยแล้ว!'
+        quickSaveMsg: 'สำรองข้อมูลลงเครื่องเรียบร้อยแล้ว!', importSuccess: 'นำเข้าข้อมูลและบันทึกเรียบร้อยแล้ว!'
       },
       en: {
         welcome: 'Welcome', appTitle: 'Wealth', appSubtitle: 'Plan',
@@ -81,11 +81,10 @@
         statusPaid: 'Paid', statusPending: 'Pending',
         themeAuto: 'Auto (System setting)', liquidDay: '(Day)', liquidNight: '(Night)',
         deleteBudgetConfirm: 'Delete this category?\n(Past transactions will remain safe)', deletedBudget: '(Deleted)',
-        quickSaveMsg: 'Backup downloaded successfully!'
+        quickSaveMsg: 'Backup downloaded successfully!', importSuccess: 'Data imported and saved successfully!'
       }
     };
 
-    // --- Helpers ---
     const generateId = () => (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).substring(2, 9);
 
     const compressImage = (file, callback) => {
@@ -108,7 +107,7 @@
       };
     };
 
-    // --- BULLETPROOF LOCAL STORAGE HOOK (Synchronous Save) ---
+    // --- BULLETPROOF LOCAL STORAGE HOOK WITH QUOTA DETECTION ---
     function useLocalStorage(key, initialValue) {
       const [storedValue, setStoredValue] = useState(() => {
         try {
@@ -117,15 +116,17 @@
         } catch { return typeof initialValue === 'function' ? initialValue() : initialValue; }
       });
 
-      // Custom setter function that forces synchronous writing to disk
       const setValue = (value) => {
         try {
           const valueToStore = value instanceof Function ? value(storedValue) : value;
           setStoredValue(valueToStore);
-          // บังคับเขียนลงหน่วยความจำเครื่องแบบทันที (ป้องกันปัดแอปทิ้งแล้วหาย)
           window.localStorage.setItem(key, JSON.stringify(valueToStore));
         } catch (error) {
           console.error('Save failed:', error);
+          // แจ้งเตือนถ้าระบบความจำเต็ม (กันแอปพังเงียบๆ)
+          if (error.name === 'QuotaExceededError' || error.message.includes('quota')) {
+            alert('⚠️ หน่วยความจำแอปพลิเคชันเต็ม! ไม่สามารถบันทึกข้อมูลใหม่ได้ (แนะนำให้ลบรายการที่มีรูปสลิปเก่าๆ ออก)');
+          }
         }
       };
 
@@ -506,16 +507,38 @@
           try {
             const data = JSON.parse(event.target.result);
             if (Array.isArray(data.budgets) && Array.isArray(data.transactions)) {
-              if (window.confirm("Overwrite all data?")) { setBudgets(data.budgets); setTransactions(data.transactions); setIsSettingsOpen(false); }
-            } else alert("Invalid file structure.");
-          } catch (err) { alert("Error reading file."); }
+              if (window.confirm("ต้องการนำเข้าและเขียนทับข้อมูลเดิมใช่หรือไม่? (Overwrite all data?)")) { 
+                
+                // --- ระบบกรองและลบรูปภาพขนาดใหญ่พิเศษ ป้องกันความจำเครื่องเต็ม ---
+                const cleanTransactions = data.transactions.map(tr => {
+                  // ถ้ารูปมีขนาดใหญ่กว่ากำหนด (เกิน ~150KB) ให้ลบแค่รูปทิ้งเพื่อรักษาข้อมูลบัญชีไว้
+                  if (tr.slipImage && tr.slipImage.length > 200000) {
+                    return { ...tr, slipImage: null };
+                  }
+                  return tr;
+                });
+
+                setBudgets(data.budgets); 
+                setTransactions(cleanTransactions); 
+                setIsSettingsOpen(false); 
+                alert(t('importSuccess'));
+              }
+            } else alert("รูปแบบไฟล์ไม่ถูกต้อง (Invalid file format)");
+          } catch (err) { alert("เกิดข้อผิดพลาดในการอ่านไฟล์ (Error reading file)"); }
           if (importFileRef.current) importFileRef.current.value = '';
         };
         reader.readAsText(file);
       };
 
+      const handleImportClick = () => {
+        if (importFileRef.current) importFileRef.current.click();
+      };
+
+      const formatMoney = (amount, lang) => new Intl.NumberFormat(lang === 'th' ? 'th-TH' : 'en-US', { style: 'currency', currency: 'THB', minimumFractionDigits: 2 }).format(amount);
+      const simAmountNum = parseFloat(simAmount) || 0;
+      const simResult = totalBalance - simAmountNum;
+
       const ctxProps = { t, thm, formType, setFormType, formData, handleInputChange, fileInputRef, handleImageUpload, handleSubmit, activeBudgets, lang, setFormData, pendingExpenses, transactions, budgets, togglePaidStatus, handleDeleteBudget };
-      const simResult = totalBalance - (parseFloat(simAmount) || 0);
 
       return (
         <div className={`fixed inset-0 w-full flex flex-col font-sans selection:bg-blue-500/30 overflow-hidden ${thm.app} ${thm.textMain}`}>
@@ -554,7 +577,7 @@
             <div className={`fixed inset-0 z-[100] flex flex-col items-center justify-center transition-opacity duration-500 ${fadeSplash ? 'opacity-0 pointer-events-none' : 'opacity-100'} ${thm.isDark ? 'bg-slate-950' : 'bg-[#FDFBF7]'}`}>
               <div className="animate-pulse-soft flex flex-col items-center">
                 <div className={`w-24 h-24 rounded-[1.8rem] shadow-xl mb-6 overflow-hidden flex items-center justify-center ${thm.isDark ? 'bg-slate-800 border border-slate-700' : 'bg-white border border-slate-100'}`}>
-                  <img src="./logo.png?v=5" alt="App Logo" className="w-full h-full object-cover bg-white" onError={(e) => { e.target.style.display='none'; e.target.nextElementSibling.style.display='block'; }} />
+                  <img src="./logo.png?v=6" alt="App Logo" className="w-full h-full object-cover bg-white" onError={(e) => { e.target.style.display='none'; e.target.nextElementSibling.style.display='block'; }} />
                   <Wallet className="w-12 h-12 text-indigo-500 hidden" />
                 </div>
                 <h1 className={`text-4xl font-extrabold tracking-tight ${thm.textMain}`}>Wealth<span className="text-indigo-500 font-medium">Plan</span></h1>
@@ -627,7 +650,7 @@
               <div className="flex justify-between items-center mb-3 relative">
                 <div className="flex items-center gap-2.5">
                   <div className={`w-10 h-10 rounded-xl shadow-sm border overflow-hidden flex items-center justify-center shrink-0 ${thm.isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-100'}`}>
-                    <img src="./logo.png?v=5" alt="App Logo" className="w-full h-full object-cover bg-white" onError={(e) => { e.target.style.display='none'; e.target.nextElementSibling.style.display='block'; }} />
+                    <img src="./logo.png?v=6" alt="App Logo" className="w-full h-full object-cover bg-white" onError={(e) => { e.target.style.display='none'; e.target.nextElementSibling.style.display='block'; }} />
                     <Wallet className="w-5 h-5 text-indigo-500 hidden" />
                   </div>
                   <h1 className={`text-lg font-bold tracking-wide ${thm.textMain}`}>{t('appTitle')}<span className="text-indigo-500 font-medium">{t('appSubtitle')}</span></h1>
