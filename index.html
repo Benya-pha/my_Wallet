@@ -1,0 +1,727 @@
+import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { 
+  Wallet, ArrowUpRight, ArrowDownRight, Briefcase, CheckCircle2, 
+  Circle, Image as ImageIcon, Download, Upload, Plus, CreditCard,
+  FileText, Calendar, Clock, ChevronRight, Calculator, X, AlertCircle,
+  LayoutGrid, History, Settings
+} from 'lucide-react';
+
+// --- i18n Dictionary ---
+const dict = {
+  th: {
+    welcome: 'ยินดีต้อนรับ', appTitle: 'Wealth', appSubtitle: 'Plan',
+    freeCash: 'คงเหลือ', income: 'รับ', expense: 'จ่าย',
+    simTitle: 'ทดลองใช้เงิน', simSub: 'จำลองรายจ่าย (ไม่บันทึกจริง)',
+    simItem: 'สิ่งที่จะซื้อ', simPrice: 'ราคา', simBefore: 'ยอดก่อนซื้อ:', simDeduct: 'หักจำลอง:', simRemain: 'เงินจะเหลือ:', simWarn: 'คำเตือน: ยอดเงินจะติดลบ',
+    importData: 'นำเข้า', exportData: 'สำรองข้อมูล',
+    addRecord: 'บันทึกรายการใหม่',
+    typeBudget: 'จ่ายจากงบ', typeExpense: 'จ่ายนอกงบ', typeIncome: 'รายรับ', typeCreate: 'ตั้งงบเพิ่ม',
+    itemName: 'ชื่อรายการ', amount: 'จำนวนเงิน (บาท)', date: 'วันที่',
+    budgetSelect: 'เลือกหมวดหมู่งบประมาณ', defaultSelect: '-- เลือกเป้าหมาย --',
+    attachSlip: 'แนบรูปภาพสลิป', slipDone: 'แนบสลิปเรียบร้อยแล้ว (คลิกเปลี่ยน)',
+    paidStatus: 'ชำระเงินเรียบร้อยแล้ว', saveBtn: 'บันทึกข้อมูล',
+    budgetTitle: 'หมวดหมู่งบประมาณ', itemsCount: 'รายการ', spent: 'ใช้ไปแล้ว', remaining: 'คงเหลือ',
+    pendingTitle: 'รายการค้างจ่าย', historyTitle: 'ประวัติรายการทั้งหมด', noHistory: 'ยังไม่มีรายการบันทึก',
+    tabBudget: 'งบประมาณ', tabForm: 'บันทึก', tabHistory: 'ประวัติ',
+    settings: 'การตั้งค่า', language: 'ภาษา', theme: 'ธีมแอปพลิเคชัน', dataManagement: 'จัดการข้อมูล',
+    statusPaid: 'ชำระแล้ว', statusPending: 'รอชำระ',
+    autoTheme: 'ธีมกระจก (Auto Theme)', autoThemeDesc: 'ระบบจะสลับโหมดสว่าง/มืด อัตโนมัติตามการตั้งค่าโทรศัพท์'
+  },
+  en: {
+    welcome: 'Welcome', appTitle: 'Wealth', appSubtitle: 'Plan',
+    freeCash: 'Balance', income: 'In', expense: 'Out',
+    simTitle: 'Simulator', simSub: 'Simulate expense (Not saved)',
+    simItem: 'Item to buy', simPrice: 'Price', simBefore: 'Before:', simDeduct: 'Sim. Deduct:', simRemain: 'Remaining:', simWarn: 'Warning: Balance will be negative',
+    importData: 'Import', exportData: 'Backup',
+    addRecord: 'Add New Record',
+    typeBudget: 'From Budget', typeExpense: 'Extra Expense', typeIncome: 'Income', typeCreate: 'New Budget',
+    itemName: 'Item Name', amount: 'Amount', date: 'Date',
+    budgetSelect: 'Select Budget Category', defaultSelect: '-- Select Target --',
+    attachSlip: 'Attach Slip Image', slipDone: 'Slip attached (Click to change)',
+    paidStatus: 'Already Paid', saveBtn: 'Save Record',
+    budgetTitle: 'Budget Categories', itemsCount: 'items', spent: 'Spent', remaining: 'Left',
+    pendingTitle: 'Pending Payments', historyTitle: 'Transaction History', noHistory: 'No records found',
+    tabBudget: 'Budgets', tabForm: 'Add', tabHistory: 'History',
+    settings: 'Settings', language: 'Language', theme: 'Application Theme', dataManagement: 'Data Management',
+    statusPaid: 'Paid', statusPending: 'Pending',
+    autoTheme: 'Liquid Glass (Auto)', autoThemeDesc: 'Theme smoothly switches based on your phone system settings.'
+  }
+};
+
+// --- Custom Hook for Local Storage ---
+function useLocalStorage(key, initialValue) {
+  const [storedValue, setStoredValue] = useState(() => {
+    try {
+      const item = window.localStorage.getItem(key);
+      return item ? JSON.parse(item) : (typeof initialValue === 'function' ? initialValue() : initialValue);
+    } catch { return typeof initialValue === 'function' ? initialValue() : initialValue; }
+  });
+  const setValue = (value) => {
+    try {
+      const valueToStore = value instanceof Function ? value(storedValue) : value;
+      setStoredValue(valueToStore);
+      window.localStorage.setItem(key, JSON.stringify(valueToStore));
+    } catch (e) {}
+  };
+  return [storedValue, setValue];
+}
+
+// --- Dynamic Liquid Glass Theme ---
+const getThemeStyles = (isDark) => {
+  if(isDark) return {
+    app: 'bg-slate-950', textMain: 'text-slate-100', muted: 'text-slate-400',
+    card: 'bg-slate-900/60 backdrop-blur-xl border-slate-800/50 shadow-md',
+    header: 'bg-slate-900/60 backdrop-blur-md border-slate-800',
+    nav: 'bg-slate-900/90 backdrop-blur-xl border-slate-800',
+    input: 'bg-slate-950/50 border-slate-800 focus:ring-indigo-500/50 text-slate-100',
+    tabActive: 'bg-gradient-to-tr from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-900/50',
+    borderSoft: 'border-slate-800', isDark: true, isLiquid: true
+  };
+  return {
+    app: 'bg-[#FDFBF7]', textMain: 'text-slate-700', muted: 'text-slate-400',
+    card: 'bg-white/70 backdrop-blur-xl border-white/60 shadow-sm',
+    header: 'bg-gradient-to-br from-indigo-50/80 via-white/80 to-pink-50/80 backdrop-blur-md border-white',
+    nav: 'bg-white/90 backdrop-blur-xl border-slate-100',
+    input: 'bg-slate-50 border-slate-100 focus:ring-indigo-100 text-slate-700',
+    tabActive: 'bg-gradient-to-tr from-blue-500 to-indigo-400 text-white shadow-lg shadow-blue-200',
+    borderSoft: 'border-slate-100', isDark: false, isLiquid: true
+  };
+};
+
+const getBudgetTheme = (spent, initialAmount, isDark) => {
+  if (initialAmount <= 0) return { bg: isDark?'bg-slate-800':'bg-slate-200', text: isDark?'text-slate-400':'text-slate-600', light: isDark?'bg-slate-800/50 border-slate-700':'bg-slate-50 border-slate-200', bar: isDark?'bg-slate-700':'bg-slate-300' };
+  
+  const remaining = initialAmount - spent;
+  const percentSpent = (spent / initialAmount) * 100;
+
+  if (remaining < 0) { // Overspent
+    return isDark 
+      ? { bg: 'bg-red-950/80', text: 'text-rose-400', light: 'bg-rose-950/30 border-rose-900/50', bar: 'bg-rose-700', label: 'text-rose-200 bg-rose-950 border-rose-900' }
+      : { bg: 'bg-rose-800', text: 'text-rose-800', light: 'bg-rose-50 border-rose-300', bar: 'bg-rose-800', label: 'text-rose-100 bg-rose-800 border-rose-800' };
+  } else if (remaining === 0 || percentSpent >= 100) { // Empty
+    return isDark
+      ? { bg: 'bg-rose-900/50', text: 'text-rose-300', light: 'bg-rose-900/20 border-rose-800/50', bar: 'bg-rose-500', label: 'text-rose-300 bg-slate-900 border-slate-700' }
+      : { bg: 'bg-rose-400', text: 'text-rose-600', light: 'bg-rose-50 border-rose-200', bar: 'bg-rose-400', label: 'text-rose-600 bg-white border-slate-100' };
+  } else if (percentSpent >= 80) { // Critical
+    return isDark
+      ? { bg: 'bg-orange-900/50', text: 'text-orange-300', light: 'bg-orange-900/20 border-orange-800/50', bar: 'bg-orange-500', label: 'text-orange-300 bg-slate-900 border-slate-700' }
+      : { bg: 'bg-orange-300', text: 'text-orange-700', light: 'bg-orange-50/50 border-orange-200', bar: 'bg-orange-300', label: 'text-orange-700 bg-white border-slate-100' };
+  } else if (percentSpent >= 50) { // Warning
+    return isDark
+      ? { bg: 'bg-amber-900/50', text: 'text-amber-300', light: 'bg-amber-900/20 border-amber-800/50', bar: 'bg-amber-500', label: 'text-amber-300 bg-slate-900 border-slate-700' }
+      : { bg: 'bg-amber-300', text: 'text-amber-700', light: 'bg-amber-50/50 border-amber-200', bar: 'bg-amber-300', label: 'text-amber-700 bg-white border-slate-100' };
+  } else { // Good
+    return isDark
+      ? { bg: 'bg-emerald-900/50', text: 'text-emerald-300', light: 'bg-emerald-900/20 border-emerald-800/50', bar: 'bg-emerald-500', label: 'text-emerald-300 bg-slate-900 border-slate-700' }
+      : { bg: 'bg-emerald-300', text: 'text-emerald-700', light: 'bg-emerald-50/50 border-emerald-200', bar: 'bg-emerald-300', label: 'text-emerald-700 bg-white border-slate-100' };
+  }
+};
+
+const getInitialBudgets = () => [
+  { id: 'b1', name: 'Eat (กิน)', initialAmount: 2200, createdAt: new Date().toISOString() },
+  { id: 'b2', name: 'Grab (เดินทาง)', initialAmount: 800, createdAt: new Date().toISOString() },
+  { id: 'b3', name: 'Cafe (คาเฟ่)', initialAmount: 200, createdAt: new Date().toISOString() },
+  { id: 'b4', name: 'Dormitory & Laundry', initialAmount: 4660, createdAt: new Date().toISOString() },
+  { id: 'b5', name: 'Internet', initialAmount: 426.93, createdAt: new Date().toISOString() }
+];
+
+const getInitialTransactions = () => [{
+  id: 'init_inc', title: 'รายรับเริ่มต้น (Income)', amount: 8500, date: new Date().toISOString().split('T')[0], type: 'income', isPaid: true, slipImage: null
+}];
+
+export default function App() {
+  // App Settings State
+  const [lang, setLang] = useLocalStorage('wealth_lang_v4', 'th');
+  
+  const currentLang = dict[lang] ? lang : 'th';
+  const t = (key) => dict[currentLang][key] || key;
+
+  // System Theme Detection (Auto)
+  const [isDarkMode, setIsDarkMode] = useState(false);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    setIsDarkMode(mediaQuery.matches);
+    const handler = (e) => setIsDarkMode(e.matches);
+    if (mediaQuery.addEventListener) mediaQuery.addEventListener('change', handler);
+    else mediaQuery.addListener(handler);
+    return () => {
+      if (mediaQuery.removeEventListener) mediaQuery.removeEventListener('change', handler);
+      else mediaQuery.removeListener(handler);
+    };
+  }, []);
+
+  const thm = getThemeStyles(isDarkMode);
+
+  // Data State
+  const [transactions, setTransactions] = useLocalStorage('wealth_tx_v8', getInitialTransactions);
+  const [budgets, setBudgets] = useLocalStorage('wealth_bd_v8', getInitialBudgets);
+  
+  // Navigation & UI State
+  const [activeTab, setActiveTab] = useState('form');
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isSimulatorOpen, setIsSimulatorOpen] = useState(false);
+  
+  // Form State
+  const [formType, setFormType] = useState('budget_expense');
+  const [formData, setFormData] = useState({ title: '', amount: '', date: new Date().toISOString().split('T')[0], budgetId: '', isPaid: true, slipImage: null });
+  const [simName, setSimName] = useState('');
+  const [simAmount, setSimAmount] = useState('');
+
+  const fileInputRef = useRef(null);
+  const importFileRef = useRef(null);
+
+  // Splash Screen State with Session Memory
+  const [showSplash, setShowSplash] = useState(() => {
+    try { return !sessionStorage.getItem('wealth_splash_seen'); } 
+    catch(e) { return true; }
+  });
+  const [fadeSplash, setFadeSplash] = useState(false);
+
+  useEffect(() => {
+    if (showSplash) {
+      const t1 = setTimeout(() => setFadeSplash(true), 2000);
+      const t2 = setTimeout(() => {
+        setShowSplash(false);
+        try { sessionStorage.setItem('wealth_splash_seen', 'true'); } catch(e) {}
+      }, 2500);
+      return () => { clearTimeout(t1); clearTimeout(t2); };
+    }
+  }, [showSplash]);
+
+  // --- Calculations ---
+  const { totalBalance, totalIncome, totalExpense } = useMemo(() => {
+    let income = 0; let expense = 0;
+    transactions.forEach(tr => { 
+      if (tr.type === 'income') income += tr.amount; 
+      if (tr.type === 'expense' || tr.type === 'budget_expense') expense += tr.amount; 
+    });
+    return { totalBalance: income - expense, totalIncome: income, totalExpense: expense };
+  }, [transactions]); 
+
+  const activeBudgets = useMemo(() => {
+    return budgets.map(budget => {
+      const spent = transactions.filter(tr => tr.type === 'budget_expense' && tr.budgetId === budget.id).reduce((sum, tr) => sum + tr.amount, 0);
+      return { ...budget, spent, remaining: budget.initialAmount - spent };
+    });
+  }, [budgets, transactions]);
+
+  const pendingExpenses = useMemo(() => transactions.filter(tr => tr.type === 'expense' && !tr.isPaid), [transactions]);
+
+  // --- Handlers ---
+  const handleInputChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setFormData(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
+  };
+
+  const handleImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => setFormData(prev => ({ ...prev, slipImage: reader.result }));
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!formData.title || !formData.amount) return;
+
+    const amountNum = parseFloat(formData.amount);
+    const newTx = { id: Date.now().toString(), title: formData.title, amount: amountNum, date: formData.date, type: formType, slipImage: formData.slipImage, createdAt: new Date().toISOString() };
+
+    if (formType === 'budget_create') {
+      setBudgets([...budgets, { id: Date.now().toString(), name: formData.title, initialAmount: amountNum, createdAt: new Date().toISOString() }]);
+    } else {
+      if (formType === 'expense') newTx.isPaid = formData.isPaid;
+      else if (formType === 'budget_expense') {
+        if (!formData.budgetId) { alert(t('budgetSelect')); return; }
+        newTx.budgetId = formData.budgetId;
+      }
+      setTransactions([newTx, ...transactions]);
+    }
+    setFormData({ title: '', amount: '', date: new Date().toISOString().split('T')[0], budgetId: '', isPaid: true, slipImage: null });
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    setActiveTab(formType !== 'budget_create' ? 'history' : 'budgets');
+  };
+
+  const togglePaidStatus = (id) => {
+    setTransactions(transactions.map(t => t.id === id ? { ...t, isPaid: !t.isPaid } : t));
+  };
+
+  const handleExportData = () => {
+    const data = { version: 8, budgets, transactions };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url; link.download = `WealthPlan_Backup_${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(link); link.click(); document.body.removeChild(link);
+  };
+
+  const handleImportFile = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const data = JSON.parse(event.target.result);
+        if (data.budgets && data.transactions) {
+          if (window.confirm("Overwrite all data?")) { 
+            setBudgets(data.budgets); 
+            setTransactions(data.transactions); 
+            setIsSettingsOpen(false); 
+          }
+        } else alert("Invalid file format.");
+      } catch (err) { alert("Error reading file."); }
+      if (importFileRef.current) importFileRef.current.value = '';
+    };
+    reader.readAsText(file);
+  };
+
+  const formatMoney = (amount) => new Intl.NumberFormat(lang === 'th' ? 'th-TH' : 'en-US', { style: 'currency', currency: 'THB', minimumFractionDigits: 2 }).format(amount);
+  const simAmountNum = parseFloat(simAmount) || 0;
+  const simResult = totalBalance - simAmountNum;
+
+  // --- Views ---
+  const FormView = () => (
+    <div className="h-full w-full overflow-y-auto overflow-x-hidden overscroll-contain pb-[120px] pt-6 px-4 md:px-8 animate-enter custom-scrollbar">
+      <div className={`max-w-xl mx-auto rounded-[2rem] p-6 lg:p-8 ${thm.card}`}>
+        <div className="flex items-center gap-3 mb-6">
+          <div className="p-2.5 bg-blue-500/10 text-blue-500 rounded-2xl">
+            <Plus className="w-5 h-5" />
+          </div>
+          <h3 className={`text-lg font-semibold tracking-tight ${thm.textMain}`}>{t('addRecord')}</h3>
+        </div>
+
+        <div className={`grid grid-cols-2 md:grid-cols-4 gap-2 mb-8 p-1.5 rounded-2xl shadow-inner ${thm.isDark ? 'bg-slate-900' : 'bg-slate-100/50'} ${thm.borderSoft} border`}>
+          {[ { id: 'budget_expense', label: t('typeBudget') }, { id: 'expense', label: t('typeExpense') }, { id: 'income', label: t('typeIncome') }, { id: 'budget_create', label: t('typeCreate') }
+          ].map(type => (
+            <button key={type.id} type="button" onClick={() => setFormType(type.id)}
+              className={`text-[12px] py-2.5 px-1 rounded-xl transition-all duration-300 font-medium active:scale-95 ${
+                formType === type.id ? `${thm.isDark ? 'bg-slate-700 text-white' : 'bg-white text-blue-600'} shadow-sm` : `${thm.muted} hover:${thm.textMain}`
+              }`}
+            >
+              {type.label}
+            </button>
+          ))}
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <div className="space-y-2">
+            <label className={`text-[11px] font-semibold ml-1 tracking-wider uppercase ${thm.muted}`}>{t('itemName')}</label>
+            <div className="relative group">
+              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none group-focus-within:text-blue-400">
+                <FileText className={`h-4 w-4 ${thm.muted} group-focus-within:text-blue-400`} />
+              </div>
+              <input type="text" name="title" value={formData.title} onChange={handleInputChange} placeholder="..." required
+                className={`input-impeccable w-full pl-11 pr-4 py-3.5 text-[16px] md:text-sm rounded-2xl outline-none shadow-sm ${thm.input}`} />
+            </div>
+          </div>
+          
+          <div className="space-y-2">
+            <label className={`text-[11px] font-semibold ml-1 tracking-wider uppercase ${thm.muted}`}>{t('amount')}</label>
+            <div className="relative group">
+              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                <span className={`font-medium text-sm group-focus-within:text-blue-400 ${thm.muted}`}>฿</span>
+              </div>
+              <input type="number" name="amount" value={formData.amount} onChange={handleInputChange} placeholder="0.00" min="0" step="0.01" required
+                className={`input-impeccable tabular-nums w-full pl-11 pr-4 py-3.5 text-[16px] md:text-sm rounded-2xl outline-none shadow-sm ${thm.input}`} />
+            </div>
+          </div>
+
+          {formType === 'budget_expense' && (
+            <div className="space-y-2 animate-enter">
+              <label className={`text-[11px] font-semibold ml-1 tracking-wider uppercase ${thm.muted}`}>{t('budgetSelect')}</label>
+              <div className="relative group">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                  <LayoutGrid className={`h-4 w-4 ${thm.muted} group-focus-within:text-blue-400`} />
+                </div>
+                <select name="budgetId" value={formData.budgetId} onChange={handleInputChange} required
+                  className={`input-impeccable w-full pl-11 pr-10 py-3.5 text-[16px] md:text-sm rounded-2xl outline-none appearance-none cursor-pointer shadow-sm ${thm.input}`}>
+                  <option value="" disabled>{t('defaultSelect')}</option>
+                  {activeBudgets.map(b => ( <option key={b.id} value={b.id}>{b.name} ({new Intl.NumberFormat(lang === 'th' ? 'th-TH' : 'en-US').format(b.remaining)})</option> ))}
+                </select>
+                <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none">
+                  <ChevronRight className={`h-4 w-4 ${thm.muted} rotate-90`} />
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <label className={`text-[11px] font-semibold ml-1 tracking-wider uppercase ${thm.muted}`}>{t('date')}</label>
+            <div className="relative group w-[calc(100%-60px)]">
+              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                <Calendar className={`h-4 w-4 ${thm.muted} group-focus-within:text-blue-400`} />
+              </div>
+              <input type="date" name="date" value={formData.date} onChange={handleInputChange} required
+                className={`input-impeccable w-full pl-11 pr-4 py-3.5 text-[16px] md:text-sm rounded-2xl outline-none tabular-nums shadow-sm ${thm.input}`} />
+            </div>
+          </div>
+
+          {(formType === 'expense' || formType === 'budget_expense') && (
+            <div className="flex flex-col gap-4 pt-3 pb-1 animate-enter">
+              <label className="flex items-center gap-3 cursor-pointer group w-fit active:scale-[0.98]">
+                <div className={`p-2.5 rounded-xl shadow-sm ${thm.isDark ? 'bg-slate-800 border-slate-700 text-slate-400 group-hover:text-blue-400' : 'bg-white border-slate-100 text-slate-400 group-hover:text-blue-500'} border`}>
+                  <ImageIcon className="w-4 h-4" />
+                </div>
+                <span className={`text-sm font-medium ${thm.muted} group-hover:${thm.textMain}`}>
+                  {formData.slipImage ? t('slipDone') : t('attachSlip')}
+                </span>
+                <input type="file" accept="image/*" className="hidden" ref={fileInputRef} onChange={handleImageUpload} />
+              </label>
+
+              {formType === 'expense' && (
+                <label className="flex items-center gap-3 cursor-pointer w-fit group active:scale-[0.98]">
+                  <div className={`w-5 h-5 rounded-[6px] border flex items-center justify-center ${formData.isPaid ? 'bg-emerald-500 border-emerald-500 shadow-md shadow-emerald-500/20' : (thm.isDark ? 'bg-slate-800 border-slate-600' : 'bg-white border-slate-200')}`}>
+                    <CheckCircle2 className={`w-3.5 h-3.5 text-white transition-opacity ${formData.isPaid ? 'opacity-100' : 'opacity-0'}`} />
+                  </div>
+                  <span className={`text-sm font-medium ${thm.muted} group-hover:${thm.textMain}`}>{t('paidStatus')}</span>
+                  <input type="checkbox" name="isPaid" checked={formData.isPaid} onChange={handleInputChange} className="hidden" />
+                </label>
+              )}
+            </div>
+          )}
+
+          {formData.slipImage && (
+            <div className={`relative w-24 h-32 rounded-2xl overflow-hidden shadow-md animate-enter border ${thm.borderSoft}`}>
+              <img src={formData.slipImage} alt="Slip" className="w-full h-full object-cover" />
+              <button type="button" onClick={() => setFormData(prev => ({...prev, slipImage: null}))} className="absolute top-2 right-2 bg-slate-900/60 backdrop-blur-md text-white rounded-full p-1 active:scale-90">
+                <Plus className="w-3.5 h-3.5 rotate-45" />
+              </button>
+            </div>
+          )}
+
+          <button type="submit" className="w-full py-4 mt-4 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-2xl font-medium text-[15px] hover:shadow-lg hover:shadow-blue-500/20 active:scale-[0.98] flex justify-center items-center gap-2">
+            {t('saveBtn')} <ArrowUpRight className="w-4 h-4 opacity-80" />
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+
+  const BudgetsView = () => (
+    <div className="h-full w-full overflow-y-auto overflow-x-hidden overscroll-contain pb-[120px] pt-6 px-4 md:px-8 animate-enter custom-scrollbar">
+      <div className="max-w-4xl mx-auto">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className={`text-lg font-semibold flex items-center gap-2.5 tracking-wide ${thm.textMain}`}>
+            <LayoutGrid className="w-5 h-5 text-indigo-400" /> {t('budgetTitle')}
+          </h3>
+          <span className={`text-[11px] font-medium px-3 py-1 rounded-full shadow-sm border ${thm.isDark ? 'bg-indigo-900/30 text-indigo-300 border-indigo-800' : 'bg-indigo-50 text-indigo-600 border-indigo-100'}`}>
+            {activeBudgets.length} {t('itemsCount')}
+          </span>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {activeBudgets.map((b, index) => {
+            const percent = Math.min(100, Math.max(0, (b.spent / b.initialAmount) * 100));
+            const themeStyle = getBudgetTheme(b.spent, b.initialAmount, thm.isDark);
+            
+            return (
+              <div key={b.id} className={`rounded-3xl p-5 border ${themeStyle.light} relative overflow-hidden group hover:-translate-y-1 shadow-sm ${thm.isLiquid ? 'backdrop-blur-xl' : ''}`} style={{animationDelay: `${index * 0.05}s`}}>
+                <div className={`absolute top-0 left-0 w-1.5 h-full ${themeStyle.bg}`}></div>
+                <div className="flex justify-between items-start mb-4 pl-1">
+                  <h4 className={`font-semibold text-[15px] ${themeStyle.text} pr-2`}>{b.name}</h4>
+                  <span className={`text-[11px] px-2.5 py-1.5 rounded-xl font-medium whitespace-nowrap tabular-nums shadow-sm border ${themeStyle.label}`}>
+                    {formatMoney(b.initialAmount)}
+                  </span>
+                </div>
+                <div className="space-y-3 pl-1">
+                  <div className="flex justify-between text-xs">
+                    <span className={`font-medium ${thm.muted}`}>{t('spent')}</span>
+                    <span className={`font-semibold tabular-nums ${thm.textMain}`}>{formatMoney(b.spent)}</span>
+                  </div>
+                  <div className={`w-full rounded-full h-2.5 overflow-hidden shadow-inner border ${thm.isDark ? 'bg-slate-800 border-slate-700' : 'bg-slate-100 border-slate-200/50'}`}>
+                    <div className={`h-full rounded-full transition-all duration-1000 ease-out ${themeStyle.bar}`} style={{ width: `${percent}%` }} />
+                  </div>
+                  <div className="flex justify-between text-xs pt-1">
+                    <span className={`font-medium ${thm.muted}`}>{t('remaining')}</span>
+                    <span className={`font-bold tabular-nums ${b.remaining < 0 ? 'text-rose-500' : thm.textMain}`}>
+                      {formatMoney(b.remaining)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+
+  const HistoryView = () => (
+    <div className="h-full w-full overflow-y-auto overflow-x-hidden overscroll-contain pb-[120px] pt-6 px-4 md:px-8 animate-enter custom-scrollbar">
+      <div className="max-w-4xl mx-auto space-y-6">
+        {pendingExpenses.length > 0 && (
+          <div className={`rounded-3xl p-6 shadow-sm border ${thm.isDark ? 'bg-rose-950/20 border-rose-900/50' : 'bg-rose-50/50 border-rose-100'} ${thm.isLiquid ? 'backdrop-blur-md' : ''}`}>
+            <h3 className="text-[14px] font-bold text-rose-500 mb-5 flex items-center gap-2.5 tracking-wide uppercase">
+              <CreditCard className="w-4 h-4" /> {t('pendingTitle')}
+              <span className={`text-[10px] px-2 py-0.5 rounded-full ml-1 ${thm.isDark ? 'bg-rose-900/50 text-rose-300' : 'bg-rose-200/50 text-rose-600'}`}>{pendingExpenses.length}</span>
+            </h3>
+            <div className="space-y-3">
+              {pendingExpenses.map(exp => (
+                <div key={exp.id} className={`flex items-center justify-between p-3.5 rounded-2xl border hover:shadow-md cursor-pointer group ${thm.isDark ? 'bg-slate-800 border-rose-900/30' : 'bg-white border-rose-100'}`} onClick={() => togglePaidStatus(exp.id)}>
+                  <div className="flex items-center gap-3.5 overflow-hidden">
+                    <div className="text-slate-400 group-hover:text-emerald-500 shrink-0 active:scale-90"><Circle className="w-6 h-6" /></div>
+                    <div className="truncate"><p className={`text-[14px] font-medium truncate ${thm.textMain}`}>{exp.title}</p></div>
+                  </div>
+                  <span className="text-[14px] font-semibold text-rose-500 whitespace-nowrap ml-3 tabular-nums">{formatMoney(exp.amount)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className={`rounded-3xl p-6 shadow-sm border ${thm.card}`}>
+           <h3 className={`text-[14px] font-bold mb-6 flex items-center gap-2.5 tracking-wide uppercase ${thm.textMain}`}>
+             <Clock className="w-4 h-4 text-indigo-400" /> {t('historyTitle')}
+           </h3>
+           
+           {transactions.length === 0 ? (
+             <div className={`py-12 flex flex-col items-center justify-center opacity-50 ${thm.muted}`}>
+               <FileText className="w-10 h-10 mb-4" />
+               <p className="text-sm font-medium">{t('noHistory')}</p>
+             </div>
+           ) : (
+             <div className="space-y-4">
+               {transactions.map((tr) => {
+                 let tag = { bg: thm.isDark?'bg-slate-800':'bg-slate-100', text: thm.muted, border: thm.borderSoft };
+                 let bName = '-';
+                 if (tr.type === 'budget_expense') {
+                   const b = budgets.find(b => b.id === tr.budgetId);
+                   if (b) { bName = b.name; const style = getBudgetTheme(b.spent, b.initialAmount, thm.isDark); tag = { bg: style.light.split(' ')[0], text: style.text, border: style.light.split(' ')[1] }; }
+                 }
+                 return (
+                 <div key={tr.id} className={`flex flex-col gap-2 pb-4 border-b last:border-0 last:pb-0 ${thm.borderSoft}`}>
+                   <div className="flex justify-between items-start">
+                     <div className="flex items-start gap-4 overflow-hidden pr-3">
+                       <div className={`p-2.5 rounded-2xl shrink-0 shadow-sm border ${
+                         tr.type === 'income' ? (thm.isDark?'bg-emerald-900/30 text-emerald-400 border-emerald-800':'bg-emerald-100/50 text-emerald-500 border-emerald-100') :
+                         tr.type === 'expense' ? (thm.isDark?'bg-rose-900/30 text-rose-400 border-rose-800':'bg-rose-100/50 text-rose-500 border-rose-100') :
+                         (thm.isDark?'bg-indigo-900/30 text-indigo-400 border-indigo-800':'bg-indigo-100/50 text-indigo-500 border-indigo-100')
+                       }`}>
+                         {tr.type === 'income' ? <ArrowUpRight className="w-4 h-4" /> : tr.type === 'expense' ? <ArrowDownRight className="w-4 h-4" /> : <Briefcase className="w-4 h-4" />}
+                       </div>
+                       <div className="truncate pt-0.5">
+                         <p className={`text-[14.5px] font-semibold truncate ${thm.textMain}`}>{tr.title}</p>
+                         <p className={`text-[11px] font-medium tracking-wide mt-0.5 tabular-nums ${thm.muted}`}>{tr.date.split('-').reverse().join('/')}</p>
+                         <div className="flex gap-2 mt-2 flex-wrap">
+                           {tr.type === 'budget_expense' && ( <span className={`inline-block text-[10px] px-2.5 py-0.5 rounded-lg truncate max-w-full font-medium border ${tag.bg} ${tag.text} ${tag.border}`}>{bName}</span> )}
+                           {tr.type === 'expense' && ( <span className={`inline-block text-[10px] px-2.5 py-0.5 rounded-lg font-medium border ${tr.isPaid ? (thm.isDark?'bg-emerald-900/30 border-emerald-800 text-emerald-400':'bg-emerald-50 border-emerald-200 text-emerald-600') : (thm.isDark?'bg-rose-900/30 border-rose-800 text-rose-400':'bg-rose-50 border-rose-200 text-rose-600')}`}>{tr.isPaid ? t('statusPaid') : t('statusPending')}</span> )}
+                         </div>
+                       </div>
+                     </div>
+                     <div className="text-right shrink-0 pt-1">
+                       <span className={`text-[15px] font-bold tabular-nums tracking-tight ${tr.type === 'income' ? (thm.isDark?'text-emerald-400':'text-emerald-500') : thm.textMain}`}>
+                         {tr.type === 'income' ? '+' : '-'}{formatMoney(tr.amount)}
+                       </span>
+                     </div>
+                   </div>
+                   {tr.slipImage && ( <div className="ml-[3.5rem] mt-2"> <img src={tr.slipImage} alt="Slip" className={`h-20 w-14 object-cover rounded-xl border shadow-sm ${thm.borderSoft}`} /> </div> )}
+                 </div>
+               )})}
+             </div>
+           )}
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className={`fixed inset-0 w-full flex flex-col font-sans selection:bg-blue-500/30 overflow-hidden ${thm.app} ${thm.textMain}`}>
+      <style dangerouslySetInnerHTML={{__html: `
+        @import url('https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap');
+        
+        /* 100% Fixed Screen Core */
+        html, body, #root { width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden !important; overscroll-behavior: none !important; -webkit-overflow-scrolling: touch; background-color: ${thm.isDark ? '#020617' : '#FDFBF7'}; }
+        * { font-family: 'Prompt', sans-serif; }
+        .tabular-nums { font-variant-numeric: tabular-nums; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .custom-scrollbar { -webkit-overflow-scrolling: touch; }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: ${thm.isDark ? '#334155' : '#cbd5e1'}; border-radius: 10px; }
+        
+        /* Smooth Theme Fade Effect */
+        * { transition: background-color 0.8s ease, border-color 0.8s ease, color 0.8s ease, box-shadow 0.8s ease; }
+        button, a, select, input, .cursor-pointer { transition: background-color 0.8s ease, border-color 0.8s ease, color 0.8s ease, box-shadow 0.8s ease, transform 0.2s ease, opacity 0.2s ease !important; }
+        .input-impeccable:focus { transform: translateY(-1px); }
+        
+        /* Animations */
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-enter { animation: fadeInUp 0.4s ease-out forwards; }
+        @keyframes fadeInScale { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+        .modal-enter { animation: fadeInScale 0.25s ease-out forwards; }
+        @keyframes pulseSoft { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.8; transform: scale(1.05); } }
+        .animate-pulse-soft { animation: pulseSoft 2s infinite ease-in-out; }
+      `}} />
+
+      {/* Hidden Data Input */}
+      <input type="file" accept=".json" className="hidden" ref={importFileRef} onChange={handleImportFile} />
+
+      {/* Background Blobs (Liquid Auto Theme) */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
+        <div className={`absolute top-[-10%] left-[-10%] w-[50%] h-[40%] blur-[120px] rounded-full ${thm.isDark ? 'bg-indigo-900/30' : 'bg-pink-200/30'}`} />
+        <div className={`absolute bottom-[-10%] right-[-10%] w-[40%] h-[50%] blur-[120px] rounded-full ${thm.isDark ? 'bg-blue-900/20' : 'bg-blue-200/30'}`} />
+        <div className={`absolute top-[20%] right-[-10%] w-[30%] h-[30%] blur-[100px] rounded-full ${thm.isDark ? 'bg-purple-900/20' : 'bg-purple-200/20'}`} />
+      </div>
+
+      {/* Splash Screen */}
+      {showSplash && (
+        <div className={`fixed inset-0 z-[100] flex flex-col items-center justify-center transition-opacity duration-500 ${fadeSplash ? 'opacity-0 pointer-events-none' : 'opacity-100'} ${thm.isDark ? 'bg-slate-950' : 'bg-[#FDFBF7]'}`}>
+          <div className="animate-pulse-soft flex flex-col items-center">
+            <div className={`p-5 rounded-[2rem] shadow-xl mb-6 ${thm.isDark ? 'bg-slate-900 border border-slate-800' : 'bg-white border border-slate-100'}`}>
+              <Wallet className="w-12 h-12 text-indigo-500" />
+            </div>
+            <h1 className={`text-4xl font-extrabold tracking-tight ${thm.textMain}`}>
+              Wealth<span className="text-indigo-500 font-medium">Plan</span>
+            </h1>
+            <div className="mt-8 flex flex-col items-center">
+               <p className={`text-[10px] font-semibold tracking-widest uppercase mb-1 ${thm.muted}`}>{t('freeCash')}</p>
+               <h2 className={`text-3xl font-bold tabular-nums tracking-tight ${totalBalance < 0 ? 'text-rose-500' : (thm.isDark ? 'text-emerald-400' : 'text-emerald-500')}`}>
+                 {formatMoney(totalBalance)}
+               </h2>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Settings Modal */}
+      {isSettingsOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+          <div className={`rounded-[2rem] p-6 w-full max-w-sm shadow-2xl relative modal-enter border ${thm.card}`}>
+            <button onClick={() => setIsSettingsOpen(false)} className={`absolute top-5 right-5 p-2 rounded-full active:scale-95 ${thm.isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-500'}`}><X className="w-5 h-5" /></button>
+            <div className="flex items-center gap-3 mb-6">
+              <div className="p-2.5 bg-indigo-500/10 rounded-xl text-indigo-500"><Settings className="w-5 h-5" /></div>
+              <h3 className={`text-lg font-bold ${thm.textMain}`}>{t('settings')}</h3>
+            </div>
+            
+            <div className="space-y-5">
+              <div className="space-y-2">
+                <label className={`text-xs font-semibold uppercase tracking-wider ${thm.muted}`}>{t('language')}</label>
+                <div className={`flex rounded-xl p-1 shadow-inner border ${thm.isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200/50'}`}>
+                  {['th', 'en'].map(l => (
+                    <button key={l} onClick={() => setLang(l)} className={`flex-1 py-2 text-sm font-semibold rounded-lg ${lang === l ? (thm.isDark ? 'bg-slate-800 text-white shadow-sm' : 'bg-white text-blue-600 shadow-sm') : thm.muted}`}>
+                      {l.toUpperCase()}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <label className={`text-xs font-semibold uppercase tracking-wider ${thm.muted}`}>{t('theme')}</label>
+                <div className={`p-4 rounded-xl border ${thm.isDark ? 'bg-slate-900/50 border-slate-800' : 'bg-slate-50 border-slate-200/50'}`}>
+                  <p className={`text-sm font-medium flex items-center gap-2 ${thm.textMain}`}>
+                    {thm.isDark ? '🌌' : '💧'} {t('autoTheme')}
+                  </p>
+                  <p className={`text-[10px] mt-1 ${thm.muted}`}>{t('autoThemeDesc')}</p>
+                </div>
+              </div>
+
+              <div className={`h-px w-full my-4 ${thm.borderSoft} border-b`}></div>
+              
+              <div className="space-y-3">
+                <label className={`text-xs font-semibold uppercase tracking-wider ${thm.muted}`}>{t('dataManagement')}</label>
+                <div className="flex gap-2">
+                  <button onClick={handleImportClick} className={`flex-1 flex justify-center items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-xl border active:scale-95 ${thm.isDark ? 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+                    <Upload className="w-4 h-4" /> {t('importData')}
+                  </button>
+                  <button onClick={handleExportData} className={`flex-1 flex justify-center items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-xl border active:scale-95 ${thm.isDark ? 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+                    <Download className="w-4 h-4" /> {t('exportData')}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Simulator Modal */}
+      {isSimulatorOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+          <div className={`rounded-[2.5rem] p-6 md:p-8 w-full max-w-md shadow-2xl relative modal-enter border ${thm.card}`}>
+            <button onClick={() => { setIsSimulatorOpen(false); setSimName(''); setSimAmount(''); }} className={`absolute top-5 right-5 p-2 rounded-full active:scale-95 ${thm.isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-500'}`}><X className="w-5 h-5" /></button>
+            <div className="flex items-center gap-3 mb-6">
+              <div className="p-3 bg-indigo-500/10 rounded-2xl text-indigo-500 border border-indigo-500/20"><Calculator className="w-6 h-6" /></div>
+              <div><h3 className={`text-lg font-bold ${thm.textMain}`}>{t('simTitle')}</h3><p className={`text-[11px] font-medium tracking-wide ${thm.muted}`}>{t('simSub')}</p></div>
+            </div>
+            <div className="space-y-4 mb-8">
+              <div className="space-y-1.5">
+                <label className={`text-[11px] font-semibold uppercase tracking-wider ml-1 ${thm.muted}`}>{t('simItem')}</label>
+                <input type="text" value={simName} onChange={(e) => setSimName(e.target.value)} placeholder="..." className={`input-impeccable w-full px-4 py-3.5 text-[16px] md:text-sm rounded-2xl outline-none shadow-sm ${thm.input}`} />
+              </div>
+              <div className="space-y-1.5">
+                <label className={`text-[11px] font-semibold uppercase tracking-wider ml-1 ${thm.muted}`}>{t('simPrice')}</label>
+                <input type="number" value={simAmount} onChange={(e) => setSimAmount(e.target.value)} placeholder="0.00" className={`input-impeccable tabular-nums w-full px-4 py-3.5 text-[16px] md:text-base rounded-2xl outline-none shadow-sm ${thm.input}`} />
+              </div>
+            </div>
+            <div className={`rounded-3xl p-5 border shadow-inner ${thm.isDark ? 'bg-slate-900/50 border-slate-800' : 'bg-slate-50/80 border-slate-100'}`}>
+              <div className="flex justify-between items-center mb-3"><span className={`text-sm font-medium ${thm.muted}`}>{t('simBefore')}</span><span className={`text-sm font-semibold tabular-nums ${thm.textMain}`}>{formatMoney(totalBalance)}</span></div>
+              <div className="flex justify-between items-center mb-4"><span className={`text-sm font-medium ${thm.muted}`}>{t('simDeduct')}</span><span className="text-sm font-semibold tabular-nums text-rose-500">-{formatMoney(simAmountNum)}</span></div>
+              <div className={`h-px w-full mb-4 ${thm.borderSoft} border-b`}></div>
+              <div className="flex justify-between items-end"><span className={`text-sm font-bold tracking-wide ${thm.textMain}`}>{t('simRemain')}</span><span className={`text-2xl font-bold tabular-nums tracking-tight ${simResult < 0 ? 'text-rose-500' : (thm.isDark?'text-emerald-400':'text-emerald-500')}`}>{formatMoney(simResult)}</span></div>
+              {simResult < 0 && ( <div className={`mt-4 flex items-center gap-2 p-3 rounded-2xl border shadow-sm ${thm.isDark ? 'bg-rose-950/50 border-rose-900 text-rose-400' : 'bg-rose-50 border-rose-100 text-rose-500'}`}><AlertCircle className="w-4 h-4 shrink-0" /><span className="text-[11px] font-medium leading-tight">{t('simWarn')}</span></div> )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* COMPACT HEADER */}
+      <header className={`flex-none z-20 pt-3 pb-4 px-4 md:px-8 relative ${thm.header}`}>
+        <div className="max-w-4xl mx-auto">
+          <div className="flex justify-between items-center mb-3 relative">
+            <div className="flex items-center gap-2.5">
+              <div className={`p-2 rounded-xl shadow-sm border ${thm.isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-100'}`}><Wallet className="w-5 h-5 text-indigo-500" /></div>
+              <h1 className={`text-lg font-bold tracking-wide ${thm.textMain}`}>{t('appTitle')}<span className="text-indigo-500 font-medium">{t('appSubtitle')}</span></h1>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <button onClick={() => setIsSimulatorOpen(true)} className={`p-2 rounded-xl active:scale-95 border ${thm.isDark ? 'bg-indigo-500/20 text-indigo-400 border-indigo-500/30' : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-500 border-indigo-100/50'}`}><Calculator className="w-4 h-4" /></button>
+              <div className={`h-5 w-px mx-1 ${thm.isDark ? 'bg-slate-700' : 'bg-slate-200'}`}></div>
+              <button onClick={() => setIsSettingsOpen(true)} className={`p-2 rounded-xl active:scale-95 border shadow-sm ${thm.isDark ? 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700' : 'bg-white text-slate-400 border-slate-100 hover:bg-slate-50'}`}><Settings className="w-4 h-4" /></button>
+            </div>
+          </div>
+          <div className={`flex gap-4 items-end justify-between relative p-3 rounded-2xl border shadow-sm ${thm.isDark ? 'bg-slate-900/50 border-slate-800 backdrop-blur-md' : 'bg-white/60 border-white backdrop-blur-md'}`}>
+            <div className="flex-1">
+              <p className={`text-[10px] mb-0.5 font-semibold tracking-wider uppercase ${thm.muted}`}>{t('freeCash')}</p>
+              <h2 className={`text-2xl md:text-3xl font-extrabold tracking-tight tabular-nums ${totalBalance < 0 ? 'text-rose-500' : thm.textMain}`}>{formatMoney(totalBalance)}</h2>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <div className={`px-2 py-1 rounded-lg border shadow-sm flex justify-between items-center gap-3 min-w-[90px] ${thm.isDark ? 'bg-slate-800 border-emerald-900/50' : 'bg-white border-emerald-100'}`}>
+                <div className={`flex items-center gap-1 ${thm.isDark ? 'text-emerald-400' : 'text-emerald-500'}`}><ArrowUpRight className="w-3 h-3" /><span className="text-[9px] font-bold tracking-wider">{t('income')}</span></div>
+                <p className={`text-[11px] font-bold tabular-nums ${thm.textMain}`}>{formatMoney(totalIncome)}</p>
+              </div>
+              <div className={`px-2 py-1 rounded-lg border shadow-sm flex justify-between items-center gap-3 min-w-[90px] ${thm.isDark ? 'bg-slate-800 border-rose-900/50' : 'bg-white border-rose-100'}`}>
+                <div className={`flex items-center gap-1 ${thm.isDark ? 'text-rose-400' : 'text-rose-500'}`}><ArrowDownRight className="w-3 h-3" /><span className="text-[9px] font-bold tracking-wider">{t('expense')}</span></div>
+                <p className={`text-[11px] font-bold tabular-nums ${thm.textMain}`}>{formatMoney(totalExpense)}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* MAIN CONTENT */}
+      <main className="flex-1 relative z-10 min-h-0"><div className="absolute inset-0">{activeTab === 'form' && FormView()}{activeTab === 'budgets' && BudgetsView()}{activeTab === 'history' && HistoryView()}</div></main>
+
+      {/* BOTTOM NAV */}
+      <nav className={`flex-none pb-safe pt-2 px-6 shadow-[0_-10px_40px_rgba(0,0,0,0.03)] z-20 pb-6 rounded-t-[2rem] absolute bottom-0 w-full ${thm.nav}`}>
+        <div className="max-w-md mx-auto flex justify-between items-center relative">
+          <button onClick={() => setActiveTab('budgets')} className={`flex flex-col items-center gap-1 p-2 w-20 ${activeTab === 'budgets' ? (thm.isDark?'text-indigo-400 -translate-y-1':'text-indigo-500 -translate-y-1') : thm.muted}`}>
+            <div className={`p-2.5 rounded-2xl ${activeTab === 'budgets' ? (thm.isDark?'bg-slate-800 shadow-sm':'bg-indigo-50 shadow-sm') : ''}`}><LayoutGrid className="w-5 h-5" /></div>
+            <span className="text-[10px] font-bold tracking-wide">{t('tabBudget')}</span>
+          </button>
+          <button onClick={() => setActiveTab('form')} className={`flex flex-col items-center gap-1 p-2 w-20 ${activeTab === 'form' ? 'text-white -translate-y-2' : thm.muted}`}>
+            <div className={`p-4 rounded-[1.25rem] ${activeTab === 'form' ? thm.tabActive : (thm.isDark?'bg-slate-800 border border-slate-700':'bg-slate-50 border border-slate-100')}`}>
+              <Plus className={`w-6 h-6 ${activeTab === 'form' ? 'text-white' : thm.muted}`} />
+            </div>
+            <span className={`text-[10px] font-bold tracking-wide mt-1 ${activeTab === 'form' ? (thm.isDark?'text-indigo-400':'text-indigo-500') : ''}`}>{t('tabForm')}</span>
+          </button>
+          <button onClick={() => setActiveTab('history')} className={`flex flex-col items-center gap-1 p-2 w-20 ${activeTab === 'history' ? (thm.isDark?'text-indigo-400 -translate-y-1':'text-indigo-500 -translate-y-1') : thm.muted}`}>
+            <div className={`p-2.5 rounded-2xl ${activeTab === 'history' ? (thm.isDark?'bg-slate-800 shadow-sm':'bg-indigo-50 shadow-sm') : ''}`}><History className="w-5 h-5" /></div>
+            <span className="text-[10px] font-bold tracking-wide">{t('tabHistory')}</span>
+          </button>
+        </div>
+      </nav>
+    </div>
+  );
+}
